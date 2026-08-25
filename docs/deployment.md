@@ -225,6 +225,61 @@ aws s3 ls "s3://${CENTRAL_BUCKET}/cur/" --profile account-a --recursive
 
 中央 Bucket 应出现两个报告目录。Live Replication 只复制规则启用后的对象；历史对象需要 S3 Batch Replication。
 
+### 7.1 通过 AWS Support 回溯历史 CUR
+
+新建 CUR 后，如果 Dashboard 和趋势分析需要覆盖 CUR 创建前的账期，必须在 **Linked Account A 和 Linked Account B 各提交一个 AWS Support 账单工单**，申请历史 CUR 回溯。不要只在中央账号提交一个工单，因为历史账单数据由各源账号分别生成。
+
+AWS Cloud Intelligence Dashboards 官方指引说明，可以通过 Support Case 申请最多 36 个月的 CUR/FOCUS 历史数据回溯；实际可回溯范围、完成时间和 AWS 中国区适用性以 Support 工单确认为准。参考：
+
+- [Cloud Intelligence Dashboards — Global Regions deployment](https://docs.aws.amazon.com/guidance/latest/cloud-intelligence-dashboards/deployment-in-global-regions.html)
+- [Cloud Intelligence Dashboards FAQ](https://docs.aws.amazon.com/guidance/latest/cloud-intelligence-dashboards/faq.html)
+
+提交前先确认：
+
+1. 对应账号的 CUR Definition 已创建，名称和交付配置不再调整。
+2. 源 Bucket 已至少收到一次正常 CUR 交付。
+3. S3 复制规则为 `Enabled`，避免 Support 新生成的对象留在源 Bucket。
+
+在每个源账号登录 AWS Support Center，创建 **Account and billing / Billing / Cost and Usage Report** 类型的工单。控制台字段名称可能略有不同。工单中填写当前账号的真实信息；这些信息只能提交到 AWS Support，不要复制到公开 GitHub Issue 或 PR。
+
+可使用以下工单模板：
+
+```text
+Subject: Request historical backfill for AWS Cost and Usage Report
+
+Please backfill the existing AWS Cost and Usage Report for this account.
+
+AWS account ID: <CURRENT_SOURCE_ACCOUNT_ID>
+AWS partition: aws-cn
+CUR report name: <CUR_REPORT_NAME>
+Destination Region: cn-northwest-1
+Destination S3 bucket: <SOURCE_CUR_BUCKET>
+S3 prefix: cur
+Requested billing period: <YYYY-MM> through <YYYY-MM>
+Report configuration: Hourly, Parquet, Overwrite, include resource IDs,
+Athena integration and refresh closed reports.
+
+Please keep the existing CUR definition and delivery settings unchanged.
+Please confirm the supported backfill range and notify us when generation is complete.
+```
+
+两个工单分别记录 Case ID、申请时间、请求账期、Support 确认范围和完成时间。Support 通知完成后，官方 FAQ 建议再预留约 24 小时等待数据交付，然后在两个源 Bucket 和中央 Bucket 验证：
+
+```bash
+aws s3 ls "s3://${CUR_BUCKET_A}/cur/${CUR_REPORT_A}/" --profile account-a --recursive
+aws s3 ls "s3://${CUR_BUCKET_B}/cur/${CUR_REPORT_B}/" --profile account-b --recursive
+aws s3 ls "s3://${CENTRAL_BUCKET}/cur/" --profile account-a --recursive
+```
+
+验收要求：
+
+- 请求范围内每个账期都有 Manifest 和 Parquet 文件。
+- 两个源账号的历史对象都已进入中央 Bucket，不能只有当前月。
+- Athena 查询的最早和最晚用量日期与 Support 确认范围一致。
+- 抽取一个已关闭账期，对比 CUR 与 Cost Explorer；差异不超过 1%，或可由 Credit、Refund、Tax、摊销等口径解释。
+
+Support 回溯期间不要删除或重建 CUR Definition，也不要修改 Report Name、Bucket、Prefix、格式或覆盖方式。当前复制规则只会复制规则生效后创建或重写的对象：如果 Support 回溯生成的是新对象，会进入 Live Replication；如果目标历史对象早已存在于源 Bucket 且未被重写，需使用 S3 Batch Replication 补复制，再进行 Athena 验证。
+
 ## 8. 创建 Athena 数据模型
 
 ### 8.1 原始表

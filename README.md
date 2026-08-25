@@ -68,11 +68,12 @@ tests/                     端到端 Smoke Test
 | 2 | Account A / 宁夏 | Account A CUR Bucket 和复制规则 |
 | 3 | Account B / 宁夏 | Account B CUR Bucket 和跨账号复制规则 |
 | 4 | 两个账号 | 创建 Hourly Parquet CUR，等待首次交付 |
-| 5 | Account A / 北京 | 创建两张 Athena 原始表和统一视图 |
-| 6 | Account B → Account A | 部署成员 Read Role、Collector Role 和 Instance Profile |
-| 7 | Account A / 北京 | 部署 QuickSight CID并取得 Dashboard ID/User ARN |
-| 8 | PoC Container Host | 配置 `.env`、Secrets、构建并启动 Docker |
-| 9 | PoC Container Host + 浏览器 | 执行 Smoke Test 和人工验收 |
+| 5 | 两个源账号 / AWS Support | 分别申请历史 CUR 回溯，并验证历史对象进入中央 Bucket |
+| 6 | Account A / 北京 | 创建两张 Athena 原始表和统一视图 |
+| 7 | Account B → Account A | 部署成员 Read Role、Collector Role 和 Instance Profile |
+| 8 | Account A / 北京 | 部署 QuickSight CID并取得 Dashboard ID/User ARN |
+| 9 | PoC Container Host | 配置 `.env`、Secrets、构建并启动 Docker |
+| 10 | PoC Container Host + 浏览器 | 执行 Smoke Test 和人工验收 |
 
 CloudFormation 不会自动创建 CUR Definition、Athena 原始表，也不会自动替换既有 EC2 Instance Profile。具体命令和注意事项全部在[客户部署手册](docs/deployment.md)中。
 
@@ -95,3 +96,11 @@ sudo python3 tests/smoke-test.py
 ```
 
 部署前请执行秘密信息扫描，并人工复核所有 CloudFormation 参数和 IAM 权限。
+
+## 拉取、Issue、分支与 PR
+
+本仓库是公开仓库，任何人都可以浏览、Clone 和 Pull。Issues 已启用，可用于提交不含客户数据的缺陷与需求。
+
+外部贡献采用标准 GitHub 流程：Fork 本仓库，在个人 Fork 中创建功能分支，推送提交后向本仓库 `main` 分支发起 Pull Request。公开用户不能直接在本仓库创建或推送分支；只有仓库 Owner 或被授予 Write 权限的 Collaborator 才能这样做。
+
+不要在 Issue、PR、Commit、日志或截图中提交真实账号 ID、Bucket、ARN、IP、用户名、客户账单数据、Access Key、Secret Key、模型密钥或内部地址。
