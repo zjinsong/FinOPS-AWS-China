@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EC2 instance profile and read-only permissions for the central FinOps application.
+
+Parameters:
+  CollectorRoleName:
+    Type: String
+    Default: FinOpsCollectorRole
+  MemberAccountRoleArn:
+    Type: String
+    Description: ARN returned by phase2-member-read-role.yaml.
+  CentralBucketName:
+    Type: String
+  AthenaDatabaseName:
+    Type: String
+    Default: finops
+  AthenaWorkGroupName:
+    Type: String
+    Default: finops
+Resources:
+  CollectorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref CollectorRoleName
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com.cn
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: FinOpsCentralReadOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CostAndInventoryRead
+                Effect: Allow
+                Action:
+                  - ce:Get*
+                  - ce:List*
+                  - compute-optimizer:Get*
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                  - ec2:Describe*
+                  - elasticloadbalancing:Describe*
+                  - autoscaling:Describe*
+                  - rds:Describe*
+                  - rds:ListTagsForResource
+                  - lambda:GetFunctionConfiguration
+                  - lambda:ListFunctions
+                  - lambda:ListProvisionedConcurrencyConfigs
+                  - ecs:DescribeClusters
+                  - ecs:DescribeServices
+                  - ecs:ListClusters
+                  - ecs:ListServices
+                  - ecs:ListTagsForResource
+                  - budgets:ViewBudget
+                  - cloudtrail:LookupEvents
+                  - tag:GetResources
+                  - pricing:DescribeServices
+                  - pricing:Get*
+                  - pricing:ListPriceLists
+                Resource: '*'
+              - Sid: AssumeMemberAccount
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Ref MemberAccountRoleArn
+              - Sid: QuickSightRegisteredEmbed
+                Effect: Allow
+                Action:
+                  - quicksight:DescribeDashboard
+                  - quicksight:DescribeUser
+                  - quicksight:GenerateEmbedUrlForRegisteredUser
+                Resource: '*'
+              - Sid: AthenaRead
+                Effect: Allow
+                Action:
+                  - athena:GetDataCatalog
+                  - athena:GetDatabase
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                  - athena:GetTableMetadata
+                  - athena:ListDatabases
+                  - athena:ListTableMetadata
+                  - athena:StartQueryExecution
+                  - athena:StopQueryExecution
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:athena:${AWS::Region}:${AWS::AccountId}:workgroup/${AthenaWorkGroupName}'
+                  - !Sub 'arn:${AWS::Partition}:athena:${AWS::Region}:${AWS::AccountId}:datacatalog/AwsDataCatalog'
+              - Sid: GlueRead
+                Effect: Allow
+                Action:
+                  - glue:GetDatabase
+                  - glue:GetDatabases
+                  - glue:GetTable
+                  - glue:GetTables
+                  - glue:GetPartition
+                  - glue:GetPartitions
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
+                  - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:database/${AthenaDatabaseName}'
+                  - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:table/${AthenaDatabaseName}/*'
+              - Sid: CentralCURReadAndAthenaResults
+                Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:s3:::${CentralBucketName}'
+                  - !Sub 'arn:${AWS::Partition}:s3:::${CentralBucketName}/*'
+
+  CollectorInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Ref CollectorRoleName
+      Roles:
+        - !Ref CollectorRole
+
+Outputs:
+  CollectorRoleArn:
+    Value: !GetAtt CollectorRole.Arn
+  InstanceProfileName:
+    Value: !Ref CollectorInstanceProfile

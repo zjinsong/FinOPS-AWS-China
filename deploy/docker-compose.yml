@@ -1,0 +1,48 @@
+name: finops-aws-china
+
+services:
+  finops-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: finops-aws-china:2.0.0
+    container_name: finops-aws-china
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - ../.env
+    secrets:
+      - deepseek_api_key
+      - session_secret
+      - admin_password_hash
+      - pseudonym_secret
+    volumes:
+      - finops-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1536m
+    cpus: 1.5
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+secrets:
+  deepseek_api_key:
+    file: ${FINOPS_SECRET_DIR:-/etc/finops-ai}/deepseek_api_key
+  session_secret:
+    file: ${FINOPS_SECRET_DIR:-/etc/finops-ai}/session_secret
+  admin_password_hash:
+    file: ${FINOPS_SECRET_DIR:-/etc/finops-ai}/admin_password_hash
+  pseudonym_secret:
+    file: ${FINOPS_SECRET_DIR:-/etc/finops-ai}/pseudonym_secret
+
+volumes:
+  finops-data:

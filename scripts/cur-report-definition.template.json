@@ -1,0 +1,13 @@
+{
+  "ReportName": "__REPORT_NAME__",
+  "TimeUnit": "HOURLY",
+  "Format": "Parquet",
+  "Compression": "Parquet",
+  "AdditionalSchemaElements": ["RESOURCES", "SPLIT_COST_ALLOCATION_DATA"],
+  "S3Bucket": "__BUCKET__",
+  "S3Prefix": "__PREFIX__",
+  "S3Region": "__REGION__",
+  "AdditionalArtifacts": ["ATHENA"],
+  "RefreshClosedReports": true,
+  "ReportVersioning": "OVERWRITE_REPORT"
+}

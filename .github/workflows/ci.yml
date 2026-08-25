@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Python
+        run: python -m compileall -q app tests
+      - name: Validate JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for path in Path('.').rglob('*.json'):
+              json.loads(path.read_text(encoding='utf-8'))
+              print(path)
+          PY
+      - name: Validate Compose rendering
+        run: |
+          cp .env.example .env
+          mkdir -p .ci-secrets
+          touch .ci-secrets/{deepseek_api_key,session_secret,admin_password_hash,pseudonym_secret}
+          echo 'FINOPS_SECRET_DIR=../.ci-secrets' >> .env
+          docker compose --env-file .env -f deploy/docker-compose.yml config >/dev/null
+      - name: Build container
+        run: docker build -f deploy/Dockerfile .
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

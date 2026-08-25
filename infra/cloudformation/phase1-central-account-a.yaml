@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Central S3, Glue and Athena resources for a two-account AWS China FinOps data platform.
+
+Parameters:
+  CentralBucketName:
+    Type: String
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+  SourceAccountAId:
+    Type: String
+    AllowedPattern: '^\d{12}$'
+  SourceAccountBId:
+    Type: String
+    AllowedPattern: '^\d{12}$'
+  SourceReplicationRoleName:
+    Type: String
+    Default: FinOpsCURReplicationRole
+  DatabaseName:
+    Type: String
+    Default: finops
+    AllowedPattern: '^[a-z0-9_]+$'
+  WorkGroupName:
+    Type: String
+    Default: finops
+
+Rules:
+  BeijingOnly:
+    Assertions:
+      - Assert: !Equals [!Ref 'AWS::Region', cn-north-1]
+        AssertDescription: Deploy the central data platform in AWS China (Beijing).
+
+Resources:
+  CentralBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref CentralBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+
+  CentralBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CentralBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RequireTLS
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt CentralBucket.Arn
+              - !Sub '${CentralBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: AllowReplicationWrites
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub 'arn:${AWS::Partition}:iam::${SourceAccountAId}:root'
+                - !Sub 'arn:${AWS::Partition}:iam::${SourceAccountBId}:root'
+            Action:
+              - s3:ReplicateObject
+              - s3:ReplicateDelete
+              - s3:ReplicateTags
+              - s3:ObjectOwnerOverrideToBucketOwner
+            Resource: !Sub '${CentralBucket.Arn}/cur/*'
+            Condition:
+              ArnEquals:
+                aws:PrincipalArn:
+                  - !Sub 'arn:${AWS::Partition}:iam::${SourceAccountAId}:role/${SourceReplicationRoleName}'
+                  - !Sub 'arn:${AWS::Partition}:iam::${SourceAccountBId}:role/${SourceReplicationRoleName}'
+
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref 'AWS::AccountId'
+      DatabaseInput:
+        Name: !Ref DatabaseName
+        Description: Central multi-account CUR catalog.
+
+  AthenaWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: !Ref WorkGroupName
+      Description: Guard-railed workgroup for FinOps queries.
+      State: ENABLED
+      WorkGroupConfiguration:
+        EnforceWorkGroupConfiguration: true
+        PublishCloudWatchMetricsEnabled: true
+        BytesScannedCutoffPerQuery: 10737418240
+        ResultConfiguration:
+          OutputLocation: !Sub 's3://${CentralBucket}/athena-results/'
+          EncryptionConfiguration:
+            EncryptionOption: SSE_S3
+
+Outputs:
+  CentralBucketName:
+    Value: !Ref CentralBucket
+  GlueDatabaseName:
+    Value: !Ref GlueDatabase
+  AthenaWorkGroupName:
+    Value: !Ref AthenaWorkGroup

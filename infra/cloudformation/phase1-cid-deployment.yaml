@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Customer-facing deployment wrapper for the AWS Cloud Intelligence Dashboards
+  Cost Intelligence Dashboard in AWS China (Beijing). This template deploys
+  CID only and connects it to an existing Legacy CUR 1.0 Athena data model.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: QuickSight configuration
+        Parameters:
+          - QuickSightUser
+          - ShareDashboard
+      - Label:
+          default: Existing CUR and Athena configuration
+        Parameters:
+          - CURBucketPath
+          - CURDatabaseName
+          - CURTableName
+          - AthenaWorkgroup
+          - AthenaQueryResultsBucket
+      - Label:
+          default: CID configuration
+        Parameters:
+          - CurrencySymbol
+          - QuickSightDataSourceRoleName
+    ParameterLabels:
+      QuickSightUser:
+        default: QuickSight administrator or author user name
+      CURBucketPath:
+        default: CUR S3 path
+      CURDatabaseName:
+        default: Glue/Athena database
+      CURTableName:
+        default: Customer-facing CUR table or view
+      AthenaWorkgroup:
+        default: Athena workgroup
+      AthenaQueryResultsBucket:
+        default: Athena result bucket name
+
+Parameters:
+  QuickSightUser:
+    Type: String
+    MinLength: 1
+    Description: >-
+      QuickSight Admin or Author user name in the default namespace. For IAM
+      Identity Center, use the QuickSight user name shown in Manage QuickSight.
+
+  ShareDashboard:
+    Type: String
+    Default: 'yes'
+    AllowedValues:
+      - 'yes'
+      - 'no'
+    Description: Share the dashboard with users in the QuickSight namespace.
+
+  CURBucketPath:
+    Type: String
+    AllowedPattern: '^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/.+$'
+    ConstraintDescription: >-
+      Use s3://bucket/cur or the standard CUR path ending in
+      /prefix/report-name/report-name.
+    Description: >-
+      S3 path accepted by the official CID template. Use s3://bucket/cur when
+      the existing Athena table or view already defines the detailed locations.
+
+  CURDatabaseName:
+    Type: String
+    MinLength: 1
+    AllowedPattern: '^[a-z0-9_]+$'
+    Description: Existing Glue Data Catalog database in cn-north-1.
+
+  CURTableName:
+    Type: String
+    Default: cur_customer_view
+    MinLength: 1
+    AllowedPattern: '^[a-z0-9_]+$'
+    Description: >-
+      Existing Legacy CUR 1.0 table or customer-facing Athena view. The view
+      should replace real account identifiers with approved account aliases.
+
+  AthenaWorkgroup:
+    Type: String
+    MinLength: 1
+    Description: Existing Athena workgroup in cn-north-1.
+
+  AthenaQueryResultsBucket:
+    Type: String
+    MinLength: 3
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+    Description: Existing Athena query-result S3 bucket name, without s3://.
+
+  CurrencySymbol:
+    Type: String
+    Default: JPY
+    AllowedValues:
+      - JPY
+      - USD
+    Description: >-
+      Select JPY to render the yen/yuan symbol used for CNY in the official
+      China CID template, or USD when the CUR currency is USD.
+
+  QuickSightDataSourceRoleName:
+    Type: String
+    Default: CidQuickSightDataSourceRole
+    MinLength: 1
+    AllowedPattern: '^[A-Za-z0-9+=,.@_-]+$'
+    Description: IAM role name created for the CID QuickSight Athena data source.
+
+Rules:
+  BeijingRegionOnly:
+    Assertions:
+      - Assert:
+          Fn::Equals:
+            - Ref: AWS::Region
+            - cn-north-1
+        AssertDescription: >-
+          Deploy this template in cn-north-1 because QuickSight is available in
+          the Beijing Region for AWS China.
+
+Resources:
+  CostIntelligenceDashboard:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: >-
+        https://aws-managed-cost-intelligence-dashboards.s3.amazonaws.com/cfn/cid-cfn.yml
+      Parameters:
+        PrerequisitesQuickSight: 'yes'
+        PrerequisitesQuickSightPermissions: 'yes'
+        QuickSightUser: !Ref QuickSightUser
+        ShareDashboard: !Ref ShareDashboard
+        CURVersion: '1.0'
+        CURBucketPath: !Ref CURBucketPath
+        AthenaWorkgroup: !Ref AthenaWorkgroup
+        AthenaQueryResultsBucket: !Ref AthenaQueryResultsBucket
+        DatabaseName: !Ref CURDatabaseName
+        CURTableName: !Ref CURTableName
+        DeployCUDOSDashboard: 'no'
+        DeployCUDOSv5: 'no'
+        DeployCostIntelligenceDashboard: 'yes'
+        DeployKPIDashboard: 'no'
+        DeployTAODashboard: 'no'
+        DeployComputeOptimizerDashboard: 'no'
+        CreateLocalAssetsBucket: 'yes'
+        KeepLegacyCURTable: 'yes'
+        CurrencySymbol: !Ref CurrencySymbol
+        QuickSightDataSourceRoleName: !Ref QuickSightDataSourceRoleName
+      TimeoutInMinutes: 60
+
+Outputs:
+  CostIntelligenceDashboardURL:
+    Description: QuickSight URL for the deployed Cost Intelligence Dashboard.
+    Value: !GetAtt CostIntelligenceDashboard.Outputs.CostIntelligenceDashboardURL
+
+  DeploymentRegion:
+    Description: AWS Region used by the CID deployment.
+    Value: !Ref AWS::Region
+
+  OfficialCIDTemplate:
+    Description: AWS-managed Cloud Intelligence Dashboards template URL.
+    Value: >-
+      https://aws-managed-cost-intelligence-dashboards.s3.amazonaws.com/cfn/cid-cfn.yml

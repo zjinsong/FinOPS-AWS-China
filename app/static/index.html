@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AWS China FinOps AI</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="brand-mark">F</div>
+      <p class="eyebrow">AWS CHINA · FINOPS</p>
+      <h1>成本治理工作台</h1>
+      <p class="muted">统一成本、异常、优化建议、CID 和 FinOps AI</p>
+      <form id="login-form">
+        <label>用户名<input id="username" autocomplete="username" value="finopsadmin" required></label>
+        <label>密码<input id="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary full" type="submit">登录</button>
+        <p id="login-error" class="error"></p>
+      </form>
+      <p class="login-note">仅通过 SSH/SSM 隧道访问 · 会话 Cookie 不向 JavaScript 暴露</p>
+    </div>
+  </div>
+
+  <div id="app-shell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark small">F</span><div><strong>FinOps AI</strong><small>AWS 中国区</small></div></div>
+      <nav id="nav">
+        <button data-page="overview" class="active"><span>01</span>总览</button>
+        <button data-page="costs"><span>02</span>成本分析</button>
+        <button data-page="recommendations"><span>03</span>优化建议</button>
+        <button data-page="anomalies"><span>04</span>异常检测</button>
+        <button data-page="cid"><span>05</span>CID Dashboard</button>
+        <button data-page="ai"><span>06</span>FinOps AI</button>
+        <button data-page="settings"><span>07</span>模型配置</button>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="status-dot"></span><span id="system-status">检查中</span>
+        <button id="logout" class="text-button">退出</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div><p class="eyebrow">CONTROL CENTER</p><h2 id="page-title">FinOps 总览</h2></div>
+        <div class="top-actions"><span id="freshness">—</span><button id="refresh-page" class="secondary">刷新</button></div>
+      </header>
+
+      <section id="page-overview" class="page active">
+        <div class="hero">
+          <div><p class="eyebrow">CURRENT MONTH</p><h3>统一成本与优化态势</h3><p>Linked Account A 与 Linked Account B · CNY 账单口径</p></div>
+          <div class="hero-source">CE API 优先<br><small>CUR / CloudWatch 补充</small></div>
+        </div>
+        <div class="metrics-grid">
+          <article class="metric-card"><span>本月成本</span><strong id="metric-cost">—</strong><small>CNY · Cost Explorer</small></article>
+          <article class="metric-card"><span>优化机会</span><strong id="metric-recs">—</strong><small>Compute Optimizer</small></article>
+          <article class="metric-card"><span>空闲候选</span><strong id="metric-idle">—</strong><small>CloudWatch + CUR 规则</small></article>
+          <article class="metric-card"><span>数据状态</span><strong id="metric-health">—</strong><small>双账号采集</small></article>
+        </div>
+        <div class="two-column">
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">TREND</p><h3>近 30 日成本趋势</h3></div></div><div id="overview-chart" class="chart"></div></article>
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">ACCOUNTS</p><h3>账号成本分布</h3></div></div><div id="account-bars" class="bar-list"></div></article>
+        </div>
+      </section>
+
+      <section id="page-costs" class="page">
+        <div class="toolbar"><label>开始日期<input type="date" id="cost-start"></label><label>结束日期（含）<input type="date" id="cost-end"></label><label>分组<select id="cost-dimension"><option>SERVICE</option><option>REGION</option><option>USAGE_TYPE</option><option>INSTANCE_TYPE</option><option>PURCHASE_TYPE</option></select></label><button id="load-cost" class="primary">查询</button></div>
+        <div class="two-column wide-left">
+          <article class="panel"><div class="panel-head"><h3>成本趋势</h3><span class="source-badge">Cost Explorer</span></div><div id="cost-chart" class="chart large"></div></article>
+          <article class="panel"><div class="panel-head"><h3>分组成本</h3></div><div id="breakdown-bars" class="bar-list scroll"></div></article>
+        </div>
+        <article class="panel"><div class="panel-head"><h3>CE / CUR 对账</h3><button id="run-reconcile" class="secondary">执行对账</button></div><div id="reconcile-table" class="table-wrap empty">点击执行对账</div></article>
+      </section>
+
+      <section id="page-recommendations" class="page">
+        <div class="recommendation-layout">
+          <aside class="recommendation-nav">
+            <p class="eyebrow">RESOURCE TYPES</p>
+            <h3>优化建议</h3>
+            <p class="recommendation-nav-note">AWS 托管建议与 FinOps 可解释规则</p>
+            <div class="recommendation-tabs">
+              <button data-rec="summary" class="active"><span class="rec-nav-icon">⌂</span><span>建议概览</span></button>
+              <div class="rec-nav-label">Compute Optimizer</div>
+              <button data-rec="ec2"><span class="rec-nav-icon">EC2</span><span>EC2 实例</span></button>
+              <button data-rec="asg"><span class="rec-nav-icon">ASG</span><span>自动扩缩组</span></button>
+              <button data-rec="ebs"><span class="rec-nav-icon">EBS</span><span>EBS 卷</span></button>
+              <button data-rec="lambda"><span class="rec-nav-icon">λ</span><span>Lambda 函数</span></button>
+              <button data-rec="ecs"><span class="rec-nav-icon">ECS</span><span>ECS 服务</span></button>
+              <button data-rec="licenses"><span class="rec-nav-icon">LIC</span><span>许可证</span></button>
+              <div class="rec-nav-label">FinOps 规则</div>
+              <button data-rec="idle"><span class="rec-nav-icon">IDLE</span><span>空闲资源</span></button>
+              <button data-rec="rds"><span class="rec-nav-icon">RDS</span><span>RDS</span></button>
+              <button data-rec="aurora"><span class="rec-nav-icon">AUR</span><span>Aurora</span></button>
+            </div>
+          </aside>
+
+          <div class="recommendation-workspace">
+            <div class="rec-page-head">
+              <div>
+                <div class="rec-breadcrumb">优化建议 <span>›</span> <strong id="rec-breadcrumb-current">建议概览</strong></div>
+                <div class="rec-title-line"><h3 id="rec-title">Compute Optimizer 建议概览</h3><span id="rec-count-badge" class="count-badge">—</span></div>
+                <p id="rec-description">统一查看 AWS 托管建议和基于 CloudWatch、CUR 的可解释优化机会。</p>
+              </div>
+              <div class="rec-head-actions"><span id="rec-source" class="source-badge">AWS API</span><button id="export-recommendations" class="secondary">导出 CSV</button><button id="reload-recommendations" class="primary">刷新建议</button></div>
+            </div>
+
+            <div id="rec-kpis" class="rec-kpis">
+              <article><span>已分析资源</span><strong>—</strong><small>当前筛选范围</small></article>
+              <article><span>预计月度节省</span><strong>—</strong><small>CNY · 已有可靠估算</small></article>
+              <article><span>需关注资源</span><strong>—</strong><small>未优化、空闲或需要验证</small></article>
+              <article><span>数据状态</span><strong>—</strong><small>双账号采集结果</small></article>
+            </div>
+
+            <div class="rec-filterbar">
+              <label class="rec-search"><span>⌕</span><input id="rec-search" type="search" placeholder="按资源、名称、结果或原因筛选"></label>
+              <label><span>账号</span><select id="rec-account-filter"><option value="">全部账号</option></select></label>
+              <label><span>结果</span><select id="rec-finding-filter"><option value="">全部结果</option></select></label>
+              <label><span>排序</span><select id="rec-sort"><option value="priority">优先级</option><option value="savings">预计节省</option><option value="cost">当前成本</option><option value="resource">资源名称</option></select></label>
+              <div class="rec-filter-count"><strong id="rec-result-count">0</strong><span>条结果</span></div>
+            </div>
+
+            <article class="rec-table-card">
+              <div id="recommendation-content" class="recommendation-content loading">正在读取建议…</div>
+            </article>
+          </div>
+        </div>
+
+        <div id="rec-detail-overlay" class="rec-detail-overlay hidden">
+          <aside id="rec-detail" class="rec-detail" aria-label="建议详情">
+            <div class="rec-detail-head"><div><p class="eyebrow">RECOMMENDATION DETAIL</p><h3 id="rec-detail-title">建议详情</h3></div><button id="close-rec-detail" class="icon-button" aria-label="关闭详情">×</button></div>
+            <div id="rec-detail-content" class="rec-detail-content"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="page-anomalies" class="page">
+        <div class="section-intro"><div><p class="eyebrow">COST ANOMALY DETECTION</p><h3>AWS 托管成本异常</h3><p>直接读取 Cost Explorer 异常监控器、影响金额和根因。</p></div><button id="load-anomalies" class="primary">刷新异常</button></div>
+        <div id="anomaly-content" class="cards-list"></div>
+      </section>
+
+      <section id="page-cid" class="page cid-page">
+        <div class="section-intro compact"><div><p class="eyebrow">CLOUD INTELLIGENCE DASHBOARD</p><h3>Cost Intelligence Dashboard</h3><p>Registered User 嵌入；不启用匿名公开共享。</p></div><button id="load-cid" class="primary">打开 CID</button></div>
+        <div id="cid-placeholder" class="cid-placeholder"><div class="brand-mark">CID</div><h3>安全嵌入尚未启动</h3><p>点击“打开 CID”，后端将创建有时限的 QuickSight 会话。</p></div>
+        <iframe id="cid-frame" class="cid-frame hidden" title="AWS Cost Intelligence Dashboard" referrerpolicy="no-referrer"></iframe>
+      </section>
+
+      <section id="page-ai" class="page ai-page">
+        <div class="ai-layout">
+          <div class="ai-intro"><p class="eyebrow">DEEPSEEK · TOOL GROUNDED</p><h3>FinOps AI 助手</h3><p>数值回答来自只读 AWS 工具结果，自动附带来源和时间范围。</p><div class="prompt-list"><button>本月主要成本来自哪些服务？</button><button>有哪些空闲资源需要优先处理？</button><button>分析 RDS 和 Aurora 优化机会</button><button>最近有什么成本异常？</button></div></div>
+          <div class="chat-panel"><div id="chat-messages" class="chat-messages"><div class="message assistant">你好，我可以分析成本、异常、Compute Optimizer、空闲资源以及 RDS/Aurora 建议。</div></div><form id="chat-form" class="chat-form"><textarea id="chat-question" rows="3" placeholder="例如：比较两个账号本月成本，并给出前三项优化建议" required></textarea><button class="primary" type="submit">发送</button></form></div>
+        </div>
+      </section>
+
+      <section id="page-settings" class="page">
+        <div class="settings-grid">
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">MODEL</p><h3>DeepSeek 模型配置</h3></div><span id="key-status" class="source-badge">检查中</span></div><form id="model-form" class="settings-form"><label>模型<select id="model-name"><option value="deepseek-chat">deepseek-chat</option><option value="deepseek-reasoner">deepseek-reasoner</option></select></label><label>Temperature<input id="model-temperature" type="number" min="0" max="1.5" step="0.1"></label><label>最大输出 Token<input id="model-tokens" type="number" min="256" max="4096" step="128"></label><div class="secret-row"><span>API Key</span><code>••••••••••••••••</code><small>仅存在后端 Docker Secret，前端不可读取</small></div><div class="button-row"><button type="submit" class="primary">保存配置</button><button id="test-model" type="button" class="secondary">测试连接</button></div><p id="model-message"></p></form></article>
+          <article class="panel"><div class="panel-head"><div><p class="eyebrow">SECURITY</p><h3>认证与数据边界</h3></div></div><ul class="check-list"><li>本地账号 + HttpOnly SameSite Cookie</li><li>应用仅绑定 127.0.0.1，通过隧道访问</li><li>QuickSight Registered User 临时嵌入会话</li><li>AWS Instance Profile + STS，不向容器保存 AK/SK</li><li>AI 仅接收脱敏工具结果，不接收原始 CUR</li><li>所有 AWS 操作只读，不执行优化动作</li></ul></article>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CUR source bucket and cross-region replication for one AWS China linked account.
+
+Parameters:
+  CurBucketName:
+    Type: String
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+  CurPrefix:
+    Type: String
+    Default: cur
+  CentralBucketName:
+    Type: String
+  CentralAccountId:
+    Type: String
+    AllowedPattern: '^\d{12}$'
+  ReplicationRoleName:
+    Type: String
+    Default: FinOpsCURReplicationRole
+  IsCrossAccount:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+
+Conditions:
+  CrossAccount: !Equals [!Ref IsCrossAccount, 'true']
+
+Rules:
+  NingxiaOnly:
+    Assertions:
+      - Assert: !Equals [!Ref 'AWS::Region', cn-northwest-1]
+        AssertDescription: Deploy each CUR source stack in AWS China (Ningxia).
+
+Resources:
+  ReplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref ReplicationRoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ReplicateCURToCentralBucket
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetReplicationConfiguration
+                  - s3:ListBucket
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${CurBucketName}'
+              - Effect: Allow
+                Action:
+                  - s3:GetObjectVersionForReplication
+                  - s3:GetObjectVersionAcl
+                  - s3:GetObjectVersionTagging
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${CurBucketName}/${CurPrefix}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ReplicateObject
+                  - s3:ReplicateDelete
+                  - s3:ReplicateTags
+                  - s3:ObjectOwnerOverrideToBucketOwner
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${CentralBucketName}/${CurPrefix}/*'
+
+  CurBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: ReplicationRole
+    Properties:
+      BucketName: !Ref CurBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      ReplicationConfiguration:
+        Role: !GetAtt ReplicationRole.Arn
+        Rules:
+          - Id: ReplicateCURToCentral
+            Status: Enabled
+            Priority: 1
+            Filter:
+              Prefix: !Sub '${CurPrefix}/'
+            DeleteMarkerReplication:
+              Status: Disabled
+            Destination:
+              Bucket: !Sub 'arn:${AWS::Partition}:s3:::${CentralBucketName}'
+              Account: !If [CrossAccount, !Ref CentralAccountId, !Ref 'AWS::NoValue']
+              AccessControlTranslation: !If
+                - CrossAccount
+                - Owner: Destination
+                - !Ref 'AWS::NoValue'
+              StorageClass: STANDARD
+
+  CurBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CurBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RequireTLS
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt CurBucket.Arn
+              - !Sub '${CurBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: AllowBillingReportsBucketRead
+            Effect: Allow
+            Principal:
+              Service: billingreports.amazonaws.com
+            Action:
+              - s3:GetBucketAcl
+              - s3:GetBucketPolicy
+            Resource: !GetAtt CurBucket.Arn
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref 'AWS::AccountId'
+              StringLike:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:cur:${AWS::Region}:${AWS::AccountId}:definition/*'
+          - Sid: AllowBillingReportsWrite
+            Effect: Allow
+            Principal:
+              Service: billingreports.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub '${CurBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref 'AWS::AccountId'
+              StringLike:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:cur:${AWS::Region}:${AWS::AccountId}:definition/*'
+
+Outputs:
+  CurBucketName:
+    Value: !Ref CurBucket
+  ReplicationRoleArn:
+    Value: !GetAtt ReplicationRole.Arn

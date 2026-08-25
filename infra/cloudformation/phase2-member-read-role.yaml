@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cross-account read-only collector role for a linked AWS China account.
+
+Parameters:
+  CentralAccountId:
+    Type: String
+    AllowedPattern: '^\d{12}$'
+  CentralCollectorRoleName:
+    Type: String
+    Default: FinOpsCollectorRole
+  MemberRoleName:
+    Type: String
+    Default: FinOpsReadOnlyRole
+  ExternalId:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+
+Resources:
+  MemberReadRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref MemberRoleName
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${CentralAccountId}:role/${CentralCollectorRoleName}'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: FinOpsReadOnlyCollection
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ce:Get*
+                  - ce:List*
+                  - compute-optimizer:Get*
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                  - ec2:Describe*
+                  - elasticloadbalancing:Describe*
+                  - autoscaling:Describe*
+                  - rds:Describe*
+                  - rds:ListTagsForResource
+                  - lambda:GetFunctionConfiguration
+                  - lambda:ListFunctions
+                  - lambda:ListProvisionedConcurrencyConfigs
+                  - ecs:DescribeClusters
+                  - ecs:DescribeServices
+                  - ecs:ListClusters
+                  - ecs:ListServices
+                  - ecs:ListTagsForResource
+                  - budgets:ViewBudget
+                  - cloudtrail:LookupEvents
+                  - tag:GetResources
+                  - pricing:DescribeServices
+                  - pricing:Get*
+                  - pricing:ListPriceLists
+                Resource: '*'
+
+Outputs:
+  MemberRoleArn:
+    Value: !GetAtt MemberReadRole.Arn
