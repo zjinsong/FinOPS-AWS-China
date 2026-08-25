@@ -68,6 +68,8 @@ Resources:
 
   CurBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     DependsOn: ReplicationRole
     Properties:
       BucketName: !Ref CurBucketName

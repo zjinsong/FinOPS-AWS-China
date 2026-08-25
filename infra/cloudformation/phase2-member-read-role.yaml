@@ -27,9 +27,11 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !Sub 'arn:${AWS::Partition}:iam::${CentralAccountId}:role/${CentralCollectorRoleName}'
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${CentralAccountId}:root'
             Action: sts:AssumeRole
             Condition:
+              ArnEquals:
+                aws:PrincipalArn: !Sub 'arn:${AWS::Partition}:iam::${CentralAccountId}:role/${CentralCollectorRoleName}'
               StringEquals:
                 sts:ExternalId: !Ref ExternalId
       Policies:

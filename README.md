@@ -4,6 +4,27 @@
 
 本仓库不包含真实账号 ID、Bucket、主机地址、用户、凭据或客户数据。示例中的 `Linked Account A`、`Linked Account B` 和 `<...>` 均为占位符。
 
+## 从这里开始
+
+客户部署请从以下文档进入：
+
+1. **主入口：[客户部署手册](docs/deployment.md)**
+
+   包含账号准备、部署顺序、每条命令、CloudFormation Outputs、CUR/Athena/CID 衔接、Docker 启动和验收。
+
+2. **方案与检查点：[四阶段实施计划](docs/implementation-plan.md)**
+
+   用于确认 Phase 1–4 的范围、输入、输出和阶段验收门。
+
+3. **专项说明：**
+   - [Phase 1：CUR、Athena 与 QuickSight](docs/phase-1-data-foundation.md)
+   - [Phase 2：API 聚合与 COH-lite](docs/phase-2-api-coh-lite.md)
+   - [Phase 3：FinOps AI](docs/phase-3-finops-ai.md)
+   - [Phase 4：持续运行](docs/phase-4-operations.md)
+   - [安全设计](docs/security.md)
+
+不要跳过主部署手册直接运行单个 YAML；Stack Outputs 需要按手册传给后续 Stack、Athena、QuickSight 和应用配置。
+
 ## 四阶段路线图
 
 | 阶段 | 目标 | 主要交付 |
@@ -39,21 +60,23 @@ tests/                     端到端 Smoke Test
 .github/workflows/         CI 与秘密信息扫描
 ```
 
-## 快速开始
+## 部署顺序速览
 
-1. 按 [Phase 1](docs/phase-1-data-foundation.md) 建立双账号 CUR 和中央 Athena。
-2. 按 [Phase 2](docs/phase-2-api-coh-lite.md) 部署跨账号只读角色。
-3. 将 `.env.example` 复制为 `.env`，替换所有占位符。
-4. 在宿主机运行 `sudo bash scripts/bootstrap-secrets.sh`，通过标准输入提供 DeepSeek API Key。
-5. 启动应用：
+| 步骤 | 在哪里执行 | 结果 |
+|---:|---|---|
+| 1 | Account A / 北京 | 中央 S3、Glue Database、Athena Workgroup |
+| 2 | Account A / 宁夏 | Account A CUR Bucket 和复制规则 |
+| 3 | Account B / 宁夏 | Account B CUR Bucket 和跨账号复制规则 |
+| 4 | 两个账号 | 创建 Hourly Parquet CUR，等待首次交付 |
+| 5 | Account A / 北京 | 创建两张 Athena 原始表和统一视图 |
+| 6 | Account B → Account A | 部署成员 Read Role、Collector Role 和 Instance Profile |
+| 7 | Account A / 北京 | 部署 QuickSight CID并取得 Dashboard ID/User ARN |
+| 8 | PoC Container Host | 配置 `.env`、Secrets、构建并启动 Docker |
+| 9 | PoC Container Host + 浏览器 | 执行 Smoke Test 和人工验收 |
 
-```bash
-docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
-```
+CloudFormation 不会自动创建 CUR Definition、Athena 原始表，也不会自动替换既有 EC2 Instance Profile。具体命令和注意事项全部在[客户部署手册](docs/deployment.md)中。
 
-服务默认只绑定 `127.0.0.1:8080`。可使用 SSM 端口转发或 SSH 隧道访问 `http://localhost:8080`。
-
-完整顺序见 [实施计划](docs/implementation-plan.md) 和 [部署手册](docs/deployment.md)。
+服务默认只绑定 `127.0.0.1:8080`，通过 SSM 或 SSH 隧道访问。
 
 ## 安全边界
 
